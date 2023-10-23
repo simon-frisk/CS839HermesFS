@@ -8,11 +8,13 @@ class HermesFS {
     ~HermesFS();
 
     // File system API
-    void createDirectory(std::string name, std::vector<std::string> path);
-    void createFile(std::string name, std::vector<std::string> path, char* data, int dataLength);
-    void readFile(std::vector<std::string> path, char* data, int* dataLength);
-    void deleteFile(std::vector<std::string> path);
+    void createDirectory(std::string path);
     void deleteDirectory(std::vector<std::string> path);
+
+    void readFile(std::string path, char* data, int* dataLength);
+    void createFile(std::string path, char* data, int dataLength);
+    void updateFile(std::string path, char* data, int dataLength);
+    void deleteFile(std::string path);
 
   private:
     INode* _inodeTable;
@@ -20,4 +22,7 @@ class HermesFS {
     // Bitmaps to track free space
     char* _inodeBitmap;
     char* _dataBitmap;
+    // Number of bytes allocated for each region
+    int _inodeTableSize;
+    int _dataregionSize;
 }
