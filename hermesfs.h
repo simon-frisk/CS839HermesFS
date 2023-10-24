@@ -25,4 +25,4 @@ class HermesFS {
     // Number of bytes allocated for each region
     int _inodeTableSize;
     int _dataregionSize;
-}
+};
