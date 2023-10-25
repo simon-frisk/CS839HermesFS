@@ -1,4 +1,5 @@
 #pragma once
+#include<string>
 
 // Enum for the two possible types of an inode - file or folder
 enum INodeType {

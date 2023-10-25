@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defs.h"
+#include<string>
 
 class HermesFS {
   public:
@@ -24,5 +25,6 @@ class HermesFS {
     char* _dataBitmap;
     // Number of bytes allocated for each region
     int _inodeTableSize;
-    int _dataregionSize;
+    int _dataRegionSize;
+    INodeType _iNodeType;
 };

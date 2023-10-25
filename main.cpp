@@ -4,5 +4,5 @@
 int main() {
   std::cout << "Hello world" << std::endl;
 
-  HermesFS fs(100);
+  HermesFS fs(100, 100);
 }

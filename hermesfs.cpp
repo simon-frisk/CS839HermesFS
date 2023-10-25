@@ -1,4 +1,5 @@
 #include "hermesfs.h"
+#include "defs.h"
 
 HermesFS::HermesFS(int capacity, int maxFiles) {
   
@@ -9,11 +10,9 @@ HermesFS::HermesFS(int capacity, int maxFiles) {
 
   // Bitmaps for free space management
   // inode bitmap
-  int inodeBitMapByteSize = maxFiles / 8 + (maxFiles % 8 == 0 ? 0 : 1);
-  _inodeBitmap = new char[bitMapByteSize];
+  _inodeBitmap = new char[maxFiles / 8 + (maxFiles % 8 == 0 ? 0 : 1)];
   // data region bitmap for what pages are free. Note here the page size is 1 byte which is probably not what we want
-  int dataRegionBitMapBytesSize = capacity / 8 + (maxFiles % 8 == 0 ? 0 : 1);
-  _dataBitmap = new char[dataRegionBitMapBytesSize];
+  _dataBitmap = new char[capacity / 8 + (maxFiles % 8 == 0 ? 0 : 1)];
   
   // Size of the regions
   _dataRegionSize = capacity;
@@ -27,10 +26,10 @@ HermesFS::~HermesFS() {
   delete[] _dataBitmap;
 }
 
-void HermesFS::createDirectory(std::string name, std::vector<std::string> path) {
+void HermesFS::createDirectory(std::string path) {
 
   // Find where to put the folder in the itable
-  int inumber = 0;
+  int inumber = 0, inodeBitMapByteSize = strlen(_inodeBitmap);
   // Loop through the bitmap and find the first place that can fit the directory
   for(int i = 0; i < inodeBitMapByteSize; i++) {
     // find the best inumber
@@ -40,7 +39,8 @@ void HermesFS::createDirectory(std::string name, std::vector<std::string> path) 
   int dataRegionLocation = 0;
 
   // Populate inode table
-  _inodeTable[inumber].type = INodeType.folder;
+  _iNodeType = folder;
+  _inodeTable[inumber].type = _iNodeType;
   _inodeTable[inumber].dataRegionOffset = dataRegionLocation;
   _inodeTable[inumber].size = sizeof(DirectoryData);
   // Register this space as occupied in the inode table bitmap
@@ -50,7 +50,7 @@ void HermesFS::createDirectory(std::string name, std::vector<std::string> path) 
 
 void HermesFS::createFile(std::string path, char* data, int dataLength) {
   // Find where to put the file in the itable
-  int inumber = 0;
+  int inumber = 0, inodeBitMapByteSize = strlen(_inodeBitmap);
 
   // Loop through the bitmap and find the first place that can fit the file
   for (int i = 0; i < inodeBitMapByteSize; i++) {
@@ -67,7 +67,7 @@ void HermesFS::createFile(std::string path, char* data, int dataLength) {
   }
 
   // Find where to put the file in the data region
-  int dataRegionLocation = 0;
+  int dataRegionLocation = 0, dataRegionBitMapBytesSize = strlen(_inodeBitmap);
   // Loop through the data region bitmap and find the first free data region
   for (int i = 0; i < dataRegionBitMapBytesSize; i++) {
     if (!(_dataBitmap[i] == 0xFF)) {
@@ -85,7 +85,8 @@ void HermesFS::createFile(std::string path, char* data, int dataLength) {
     }
   }
 
-  _inodeTable[inumber].type = INodeType::file;
+  _iNodeType = file;
+  _inodeTable[inumber].type = _iNodeType;
   _inodeTable[inumber].dataRegionOffset = dataRegionLocation;
   _inodeTable[inumber].size = dataLength;
 
