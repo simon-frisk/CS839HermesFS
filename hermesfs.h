@@ -22,6 +22,8 @@ class HermesFS {
     // Helper methods that are needed several times
     int allocateINode();
     int getFileINumberInFolder(int folderINumber, std::string fileName);
+    int allocateDataRegionSpace(int size);
+    void putInDirectory(int directoryINumber, DirectoryData directoryDataItem);
 
     // Inote table and data region
     INode* _inodeTable;
