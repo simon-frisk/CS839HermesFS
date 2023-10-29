@@ -18,6 +18,11 @@ class HermesFS {
     void deleteFile(std::string path);
 
   private:
+
+    // Helper methods that are needed several times
+    int allocateINode();
+
+    // Inote table and data region
     INode* _inodeTable;
     char* _dataBuffer;
     // Bitmaps to track free space
