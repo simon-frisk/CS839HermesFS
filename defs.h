@@ -1,6 +1,8 @@
 #pragma once
 #include<string>
 
+#define MAX_FILE_NAME_LENGTH 10
+
 // Enum for the two possible types of an inode - file or folder
 enum INodeType {
   folder, file
@@ -15,6 +17,6 @@ struct INode {
 
 // Store a list of these in the data region for a directory
 struct DirectoryData {
-  std::string name;
+  char name[MAX_FILE_NAME_LENGTH + 1];
   int inumber;
 };

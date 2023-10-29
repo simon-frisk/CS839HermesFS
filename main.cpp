@@ -9,8 +9,14 @@ int main() {
 
   std::vector<std::string> paths = splitPath(path);
 
-  HermesFS fs(50, 5);
+  HermesFS fs(100, 10);
 
-  char* d= 0xc4;
-  fs.createFile("/test.txt", d, 1);
+  unsigned char d = 'a';
+  unsigned char* b = &d;
+  fs.createFile("/test.txt", b, 1);
+  unsigned char* res = new unsigned char[10];
+  int len;
+  fs.readFile("/test.txt", res, &len);
+
+  int a = 19;
 }
