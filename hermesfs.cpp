@@ -32,44 +32,50 @@ HermesFS::~HermesFS() {
 }
 
 void HermesFS::createDirectory(std::string path) {
-  // Split path
-  std::vector<std::string> paths = splitPath(path);
-  // Make sure the name is not longer than what is allowed
-  if (paths.size() > 0 && paths.back().length() > MAX_FILE_NAME_LENGTH)
-      return;
+    // Split path
+    std::vector<std::string> paths = splitPath(path);
 
-  // Allocate a new INode and set it's contents
-  int inumber = allocateINode();    
-  if(inumber == -1) return;
+    // Allocate a new INode and set it's contents
+    int inumber = allocateINode();    
+    if(inumber == -1) return;
 
-  // Find the inumber of the parent directory
-  if (paths.size() > 0) {
-      int parentINumber = 0;
-      for (int i = 0; i + 1 < paths.size(); i++) {
-          parentINumber = getFileINumberInFolder(parentINumber, paths[i]);
-          if (parentINumber == -1)
-              return; // Did not find a folder along the path
-      }
-      // Add this directory to the parent
-      DirectoryData directoryData;
-      directoryData.inumber = inumber;
-      strcpy(directoryData.name, paths.back().c_str());
-      putInDirectory(parentINumber, directoryData);
-  }
+    // Unless this is the root directory, add this directory to it's parent
+    if (paths.size() != 0) {
+        // Find the name of the new directory
+        std::string dirName = paths.back();
+        paths.pop_back();
+        // Make sure the name is not longer than what is allowed
+        if (dirName.length() > MAX_FILE_NAME_LENGTH)
+            return;
+        // Find the inumber of the parent directory by traversing the path
+        int parentINumber = traversePathGetInumber(paths);
+        if (parentINumber == -1)
+            return;
+        // Add this directory to the parent
+        DirectoryData directoryData;
+        directoryData.inumber = inumber;
+        strcpy(directoryData.name, dirName.c_str());
+        putInDirectory(parentINumber, directoryData);
+    }
 
-  // Populate inode table
-  _inodeTable[inumber].type = folder;
-  _inodeTable[inumber].dataRegionOffset = 0;
-  _inodeTable[inumber].size = 0;
-  // Register this space as occupied in the inode table bitmap
-  _inodeBitmap[inumber / 8] |= (1 << inumber % 8);
+    // Populate inode table
+    _inodeTable[inumber].type = folder;
+    _inodeTable[inumber].dataRegionOffset = 0;
+    _inodeTable[inumber].size = 0;
+    // Register this space as occupied in the inode table bitmap
+    _inodeBitmap[inumber / 8] |= (1 << inumber % 8);
 }
 
 void HermesFS::createFile(std::string path, unsigned char* data, int dataLength) {
   // Split the path
   std::vector<std::string> paths = splitPath(path);
+  if (paths.size() == 0)
+      return;
+  std::string fileName = paths.back();
+  paths.pop_back();
+
   // Make sure the name is not longer than what is allowed
-  if (paths.size() > 0 && paths.back().length() > MAX_FILE_NAME_LENGTH)
+  if (fileName.length() > MAX_FILE_NAME_LENGTH)
     return;
 
   // Allocate a new INode and set it's contents
@@ -96,24 +102,21 @@ void HermesFS::createFile(std::string path, unsigned char* data, int dataLength)
 
   // Update the parent folder to have this file as a child
   DirectoryData dirData;
-  strcpy(dirData.name, paths.back().c_str()); // Copy dictionary name into the dictionary data item
+  strcpy(dirData.name, fileName.c_str()); // Copy dictionary name into the dictionary data item
   dirData.inumber = inumber;
 
-  int parentDirectoryINumber = 0;
-  for (int i = 0; i + 1 < paths.size(); i++) {
-      parentDirectoryINumber = getFileINumberInFolder(parentDirectoryINumber, paths[i]);
-      if (parentDirectoryINumber == -1)
-          return; // Did not find a folder along the path
-  }
+  // Find the inumber of the parent directory and add this file to it's list
+  int parentDirectoryINumber = traversePathGetInumber(paths);
+  if (parentDirectoryINumber == -1)
+      return;
   putInDirectory(parentDirectoryINumber, dirData);
 }
 
 void HermesFS::readFile(std::string path, unsigned char* data, int* dataLength) {
     std::vector<std::string> paths = splitPath(path);
 
-    // Look for the "test" file in the root folder
-    int inumber = getFileINumberInFolder(0, paths.back()); // TODO TRAVERSE
-
+    // Traverse the path and find the inumber of the file
+    int inumber = traversePathGetInumber(paths);
     if (inumber == -1)
         return;
 
@@ -200,4 +203,15 @@ void HermesFS::putInDirectory(int directoryINumber, DirectoryData directoryDataI
     // Change data in inode
     _inodeTable[directoryINumber].dataRegionOffset = dataRegionLocation;
     _inodeTable[directoryINumber].size += sizeof(DirectoryData);
+}
+
+int HermesFS::traversePathGetInumber(std::vector<std::string> path)
+{
+    int inumber = 0;
+    for (int i = 0; i < path.size(); i++) {
+        inumber = getFileINumberInFolder(inumber, path[i]);
+        if (inumber == -1)
+            return -1; // Did not find a folder along the path
+    }
+    return inumber;
 }

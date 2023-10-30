@@ -1,7 +1,9 @@
 #pragma once
 
 #include "defs.h"
-#include<string>
+#include <string>
+#include <vector>
+#include <string>
 
 class HermesFS {
   public:
@@ -24,6 +26,7 @@ class HermesFS {
     int getFileINumberInFolder(int folderINumber, std::string fileName);
     int allocateDataRegionSpace(int size);
     void putInDirectory(int directoryINumber, DirectoryData directoryDataItem);
+    int traversePathGetInumber(std::vector<std::string> path);
 
     // Inote table and data region
     INode* _inodeTable;
