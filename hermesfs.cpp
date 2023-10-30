@@ -32,26 +32,44 @@ HermesFS::~HermesFS() {
 }
 
 void HermesFS::createDirectory(std::string path) {
+  // Split path
+  std::vector<std::string> paths = splitPath(path);
+  // Make sure the name is not longer than what is allowed
+  if (paths.size() > 0 && paths.back().length() > MAX_FILE_NAME_LENGTH)
+      return;
+
   // Allocate a new INode and set it's contents
   int inumber = allocateINode();    
   if(inumber == -1) return;
 
-  // Find where to put the folder in the data region
-  int dataRegionLocation = allocateDataRegionSpace(0); // Initially the data region size of the dictionary is 0
+  // Find the inumber of the parent directory
+  if (paths.size() > 0) {
+      int parentINumber = 0;
+      for (int i = 0; i + 1 < paths.size(); i++) {
+          parentINumber = getFileINumberInFolder(parentINumber, paths[i]);
+          if (parentINumber == -1)
+              return; // Did not find a folder along the path
+      }
+      // Add this directory to the parent
+      DirectoryData directoryData;
+      directoryData.inumber = inumber;
+      strcpy(directoryData.name, paths.back().c_str());
+      putInDirectory(parentINumber, directoryData);
+  }
 
   // Populate inode table
   _inodeTable[inumber].type = folder;
-  _inodeTable[inumber].dataRegionOffset = dataRegionLocation;
-  _inodeTable[inumber].size = sizeof(DirectoryData);
+  _inodeTable[inumber].dataRegionOffset = 0;
+  _inodeTable[inumber].size = 0;
   // Register this space as occupied in the inode table bitmap
   _inodeBitmap[inumber / 8] |= (1 << inumber % 8);
 }
 
 void HermesFS::createFile(std::string path, unsigned char* data, int dataLength) {
   // Split the path
-  std::string name = "test";
+  std::vector<std::string> paths = splitPath(path);
   // Make sure the name is not longer than what is allowed
-  if (name.length() > MAX_FILE_NAME_LENGTH)
+  if (paths.size() > 0 && paths.back().length() > MAX_FILE_NAME_LENGTH)
     return;
 
   // Allocate a new INode and set it's contents
@@ -78,10 +96,15 @@ void HermesFS::createFile(std::string path, unsigned char* data, int dataLength)
 
   // Update the parent folder to have this file as a child
   DirectoryData dirData;
-  memcpy(dirData.name, name.c_str(), name.length() + 1); // Copy dictionary name into the dictionary data item
-  dirData.inumber = 1;
+  strcpy(dirData.name, paths.back().c_str()); // Copy dictionary name into the dictionary data item
+  dirData.inumber = inumber;
 
-  int parentDirectoryINumber = 0; // TODO: Traverse path to find this
+  int parentDirectoryINumber = 0;
+  for (int i = 0; i + 1 < paths.size(); i++) {
+      parentDirectoryINumber = getFileINumberInFolder(parentDirectoryINumber, paths[i]);
+      if (parentDirectoryINumber == -1)
+          return; // Did not find a folder along the path
+  }
   putInDirectory(parentDirectoryINumber, dirData);
 }
 
@@ -89,7 +112,7 @@ void HermesFS::readFile(std::string path, unsigned char* data, int* dataLength) 
     std::vector<std::string> paths = splitPath(path);
 
     // Look for the "test" file in the root folder
-    int inumber = getFileINumberInFolder(0, "test");
+    int inumber = getFileINumberInFolder(0, paths.back()); // TODO TRAVERSE
 
     if (inumber == -1)
         return;
@@ -115,20 +138,19 @@ int HermesFS::getFileINumberInFolder(int folderINumber, std::string fileName)
 {
     INode folderINode = _inodeTable[folderINumber];
 
-    // Iterate through the files/directories in this directory and find the file with this name
+    // Iterate through the files/directories in this directory and find the file/directory with this name
     for (int offset = 0; offset < folderINode.size; offset += sizeof(DirectoryData)) {
         DirectoryData* dirData = (DirectoryData*) (_dataBuffer + folderINode.dataRegionOffset + offset);
         if (strcmp(dirData->name, fileName.c_str()) == 0)
             return dirData->inumber;
     }
-    // Did not find a matching file
+    // Did not find a matching file/directory
     return -1;
 }
 
 int HermesFS::allocateDataRegionSpace(int size)
 {
     // If a region of size 0 was requested, put it at offset 0
-    // This can happen for example for empty directories
     if (size == 0)
         return 0;
 

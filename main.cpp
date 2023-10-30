@@ -3,9 +3,7 @@
 #include "util.h"
 
 int main() {
-  std::cout << "Hello world" << std::endl;
-
-  std::string path = "/hello/my/name/wow";
+  std::string path = "/hello/ho";
 
   std::vector<std::string> paths = splitPath(path);
 

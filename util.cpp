@@ -20,6 +20,9 @@ std::vector<std::string> splitPath(std::string path) {
       temp += path[i];
     }
 
+    if(path[i + 1] == '\0')
+        paths.push_back(temp);
+
     // Increment counter
     i++;
   }
