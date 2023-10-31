@@ -1,7 +1,9 @@
 #pragma once
 
 #include "defs.h"
-#include<string>
+#include <string>
+#include <vector>
+#include <string>
 
 class HermesFS {
   public:
@@ -10,26 +12,31 @@ class HermesFS {
 
     // File system API
     void createDirectory(std::string path);
-    void deleteDirectory(std::vector<std::string> path);
+    void deleteDirectory(std::string path);
 
-    void readFile(std::string path, char* data, int* dataLength);
-    void createFile(std::string path, char* data, int dataLength);
-    void updateFile(std::string path, char* data, int dataLength);
+    void readFile(std::string path, unsigned char* data, int* dataLength);
+    void createFile(std::string path, unsigned char* data, int dataLength);
+    void updateFile(std::string path, unsigned char* data, int dataLength);
     void deleteFile(std::string path);
 
   private:
 
     // Helper methods that are needed several times
     int allocateINode();
+    int getFileINumberInFolder(int folderINumber, std::string fileName);
+    int allocateDataRegionSpace(int size);
+    void putInDirectory(int directoryINumber, DirectoryData directoryDataItem);
+    int traversePathGetInumber(std::vector<std::string> path);
 
     // Inote table and data region
     INode* _inodeTable;
-    char* _dataBuffer;
+    unsigned char* _dataBuffer;
     // Bitmaps to track free space
-    char* _inodeBitmap;
-    char* _dataBitmap;
+    unsigned char* _inodeBitmap;
+    unsigned char* _dataBitmap;
     // Number of bytes allocated for each region
     int _inodeTableSize;
-    int _dataRegionSize;
+    int _dataRegionBitMapSize;
+    int _capacity;
     INodeType _iNodeType;
 };
