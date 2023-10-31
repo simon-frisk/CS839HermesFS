@@ -259,3 +259,56 @@ int HermesFS::traversePathGetInumber(std::vector<std::string> path)
     return inumber;
 }
 
+void HermesFS::deleteFile(std::string path) {
+    std::vector<std::string> paths = splitPath(path);
+
+    int fileINumber = traversePathGetInumber(paths);
+    if (fileINumber == -1)
+        return;
+
+    INode fileINode = _inodeTable[fileINumber];
+
+    if (fileINode.type != file) {
+        return;
+    }
+
+    freeDataRegionSpace(fileINode.dataRegionOffset, fileINode.size);
+
+    _inodeBitmap[fileINumber / 8] &= ~(1 << fileINumber % 8);
+
+    // Remove the file from its parent directory
+    removeFileFromParentDirectory(paths, fileINumber);
+}
+
+void HermesFS::removeFileFromParentDirectory(std::vector<std::string> path, int fileINumber) {
+    if (path.empty()) {
+        return;
+    }
+
+    int parentDirectoryINumber = traversePathGetInumber(path);
+    if (parentDirectoryINumber == -1) {
+        return;
+    }
+
+    INode parentDirectoryINode = _inodeTable[parentDirectoryINumber];
+
+    // Find and remove the file entry from the parent directory
+    std::string fileName = path.back();
+    for (int offset = 0; offset < parentDirectoryINode.size; offset += sizeof(DirectoryData)) {
+        DirectoryData* dirData = (DirectoryData*)(_dataBuffer + parentDirectoryINode.dataRegionOffset + offset);
+        if (strcmp(dirData->name, fileName.c_str()) == 0) {
+            // Remove the entry by shifting the remaining entries
+            int entriesToShift = parentDirectoryINode.size - offset - sizeof(DirectoryData);
+            if (entriesToShift > 0) {
+                memmove(_dataBuffer + parentDirectoryINode.dataRegionOffset + offset,
+                        _dataBuffer + parentDirectoryINode.dataRegionOffset + offset + sizeof(DirectoryData),
+                        entriesToShift);
+            }
+            // Update the directory's size and mark the data region as free
+            parentDirectoryINode.size -= sizeof(DirectoryData);
+            freeDataRegionSpace(parentDirectoryINode.dataRegionOffset + parentDirectoryINode.size,
+                                sizeof(DirectoryData));
+            break;
+        }
+    }
+}
