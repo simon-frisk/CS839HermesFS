@@ -66,6 +66,49 @@ void HermesFS::createDirectory(std::string path) {
     _inodeBitmap[inumber / 8] |= (1 << inumber % 8);
 }
 
+void HermesFS::updateFile(std::string path, unsigned char* newData, int newDataLength) {
+    std::vector<std::string> paths = splitPath(path);
+
+    int fileINumber = traversePathGetInumber(paths);
+    if (fileINumber == -1)
+        return;
+
+    INode fileINode = _inodeTable[fileINumber];
+    
+    // Check if the file is a regular file (not a directory)
+    if (fileINode.type != file) {
+        return;
+    }
+
+    if (newDataLength != fileINode.size) {
+        // If the new data length is different, we need to allocate a new data region
+        int newDataRegionLocation = allocateDataRegionSpace(newDataLength);
+        if (newDataRegionLocation == -1)
+            return;
+
+        // Copy the new data to the data region
+        memcpy(_dataBuffer + newDataRegionLocation, newData, newDataLength);
+
+        for (int i = newDataRegionLocation; i < newDataRegionLocation + newDataLength; i++)
+            _dataBitmap[i / 8] |= (1 << i % 8);
+
+        // Free the old data region
+        freeDataRegionSpace(fileINode.dataRegionOffset, fileINode.size);
+
+        _inodeTable[fileINumber].dataRegionOffset = newDataRegionLocation;
+        _inodeTable[fileINumber].size = newDataLength;
+    } else {
+        // If the new data length is the same as the old data length, we can simply update the existing data
+        memcpy(_dataBuffer + fileINode.dataRegionOffset, newData, newDataLength);
+    }
+}
+
+void HermesFS::freeDataRegionSpace(int offset, int size) {
+    for (int i = offset; i < offset + size; i++) {
+        _dataBitmap[i / 8] &= ~(1 << i % 8);
+    }
+}
+
 void HermesFS::createFile(std::string path, unsigned char* data, int dataLength) {
   // Split the path
   std::vector<std::string> paths = splitPath(path);
@@ -215,3 +258,4 @@ int HermesFS::traversePathGetInumber(std::vector<std::string> path)
     }
     return inumber;
 }
+
