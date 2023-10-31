@@ -27,6 +27,8 @@ class HermesFS {
     int allocateDataRegionSpace(int size);
     void putInDirectory(int directoryINumber, DirectoryData directoryDataItem);
     int traversePathGetInumber(std::vector<std::string> path);
+    void freeDataRegionSpace(int offset, int size);
+    void removeFileFromParentDirectory(std::vector<std::string> path, int fileINumber);
 
     // Inote table and data region
     INode* _inodeTable;
