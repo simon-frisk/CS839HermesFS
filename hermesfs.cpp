@@ -226,7 +226,7 @@ void HermesFS::putInDirectory(int directoryINumber, DirectoryData directoryDataI
     INode inode = _inodeTable[directoryINumber];
 
     // Allocate a new block of space on the data region
-    int dataRegionLocation = allocateDataRegionSpace(inode.size + 1);
+    int dataRegionLocation = allocateDataRegionSpace(inode.size + sizeof(DirectoryData));
     // Check enough space was found
     if (dataRegionLocation == -1)
         return;
@@ -237,10 +237,10 @@ void HermesFS::putInDirectory(int directoryINumber, DirectoryData directoryDataI
     memcpy(_dataBuffer + dataRegionLocation + inode.size, &directoryDataItem, sizeof(DirectoryData));
 
     // Register data region space as occupied
-    for (int i = dataRegionLocation; i < dataRegionLocation + sizeof(DirectoryData) * (inode.size + 1); i++)
+    for (int i = dataRegionLocation; i < dataRegionLocation + inode.size + sizeof(DirectoryData); i++)
         _dataBitmap[i / 8] |= (1 << i % 8);
     // Register data region space as free
-    for (int i = inode.dataRegionOffset; i < inode.dataRegionOffset + sizeof(DirectoryData) * inode.size; i++)
+    for (int i = inode.dataRegionOffset; i < inode.dataRegionOffset + inode.size; i++)
         _dataBitmap[i / 8] |= (1 << i % 8);
 
     // Change data in inode
