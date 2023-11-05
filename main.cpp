@@ -11,7 +11,7 @@ void manyAppendsBenchMark(int dataLength) {
 	// Data to write
 	unsigned char* data = new unsigned char[dataLength];
 	// Set up fs
-	HermesFS fs(dataLength * 10, 10);
+	HermesFS fs(dataLength * 10 * PAGE_SIZE, 10);
 	fs.createDirectory("/dir");
 	fs.createFile("/dir/test.txt", data, 1);
 
@@ -33,7 +33,7 @@ void manyFilesInFolderBenchMark(int files) {
 	unsigned char data = 'a';
 	unsigned char* dataBuf = &data;
 	// Set up fs
-	HermesFS fs(files * 20, files + 20);
+	HermesFS fs(files * PAGE_SIZE, files + 20);
 	fs.createDirectory("/dir");
 
 	auto start = high_resolution_clock::now();
@@ -49,7 +49,40 @@ void manyFilesInFolderBenchMark(int files) {
 	std::cout << "Benchmark took: " << duration << "ms" << std::endl;
 }
 
+void test1() {
+	std::cout << "Running test 1 ... ";
+	bool success = true;
+
+	unsigned char data = 'a';
+	unsigned char* dataBuf = &data;
+
+	HermesFS fs(PAGE_SIZE * 100, 20);
+	fs.createDirectory("/dir");
+	fs.createDirectory("/dir/test1");
+
+	fs.createFile("/dir/test2", dataBuf, 1);
+	unsigned char res1;
+	int rlen1;
+	fs.readFile("/dir/test2", &res1, &rlen1);
+	success &= res1 == 'a';
+	
+	fs.createFile("/dir/test1/test3", dataBuf, 1);
+	unsigned char res2;
+	int rlen2;
+	fs.readFile("/dir/test2", &res2, &rlen2);
+	success &= res2 == 'a';
+
+	if (success)
+		std::cout << "Success" << std::endl;
+	else
+		std::cout << "Fail" << std::endl;
+}
+
 int main() {
+	// Tests
+	test1();
+
+	// Benchmarks for measuring performance
 	manyFilesInFolderBenchMark(10000);
 	manyAppendsBenchMark(10000);
 

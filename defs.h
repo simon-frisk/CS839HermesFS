@@ -3,6 +3,8 @@
 
 #define MAX_FILE_NAME_LENGTH 10
 
+#define PAGE_SIZE 4096 // 4KB Pages
+
 // Enum for the two possible types of an inode - file or folder
 enum INodeType {
   folder, file

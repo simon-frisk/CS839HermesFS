@@ -14,9 +14,8 @@ HermesFS::HermesFS(int capacity, int maxFiles) {
   _inodeTableSize = maxFiles / 8 + (maxFiles % 8 == 0 ? 0 : 1);
   _inodeBitmap = new unsigned char[_inodeTableSize];
   memset(_inodeBitmap, 0, _inodeTableSize);
-  // data region bitmap for what pages are free. Note here the page size is 1 byte which is probably not what we want
-  _dataRegionBitMapSize = capacity / 8;
-  _capacity = capacity;
+  // data region bitmap for what pages in data region are free.
+  _dataRegionBitMapSize = capacity / (8 * PAGE_SIZE) + (capacity % (8*PAGE_SIZE) == 0 ? 0 : 1);
   _dataBitmap = new unsigned char[_dataRegionBitMapSize];
   memset(_dataBitmap, 0, _dataRegionBitMapSize);
 
@@ -89,9 +88,6 @@ void HermesFS::updateFile(std::string path, unsigned char* newData, int newDataL
         // Copy the new data to the data region
         memcpy(_dataBuffer + newDataRegionLocation, newData, newDataLength);
 
-        for (int i = newDataRegionLocation; i < newDataRegionLocation + newDataLength; i++)
-            _dataBitmap[i / 8] |= (1 << i % 8);
-
         // Free the old data region
         freeDataRegionSpace(fileINode.dataRegionOffset, fileINode.size);
 
@@ -100,12 +96,6 @@ void HermesFS::updateFile(std::string path, unsigned char* newData, int newDataL
     } else {
         // If the new data length is the same as the old data length, we can simply update the existing data
         memcpy(_dataBuffer + fileINode.dataRegionOffset, newData, newDataLength);
-    }
-}
-
-void HermesFS::freeDataRegionSpace(int offset, int size) {
-    for (int i = offset; i < offset + size; i++) {
-        _dataBitmap[i / 8] &= ~(1 << i % 8);
     }
 }
 
@@ -139,9 +129,6 @@ void HermesFS::createFile(std::string path, unsigned char* data, int dataLength)
 
   // Copy the file data to the data region
   memcpy(_dataBuffer + dataRegionLocation, data, dataLength);
-  // Register this space as occupied in the data region bitmap
-  for (int i = dataRegionLocation; i < dataRegionLocation + dataLength; i++)
-      _dataBitmap[i / 8] |= (1 << i % 8);
 
   // Update the parent folder to have this file as a child
   DirectoryData dirData;
@@ -200,8 +187,9 @@ int HermesFS::allocateDataRegionSpace(int size)
     if (size == 0)
         return 0;
 
-    // Find where to put the file in the data region
-    int dataRegionLocation = -1;
+    int numNeededPages = size / PAGE_SIZE + (size % PAGE_SIZE == 0 ? 0 : 1);
+    // Find what page to put the file in the data region
+    int pageId = -1;
     int rangeStart = 0;
     // Loop through the data region bitmap and find the first free data region of size large enough
     for (int i = 0; i < _dataRegionBitMapSize * 8; i++) {
@@ -209,15 +197,28 @@ int HermesFS::allocateDataRegionSpace(int size)
         if (isBitSet)
             rangeStart = i + 1;
         else {
-            if (i - rangeStart + 1 >= size) {
-                dataRegionLocation = rangeStart;
+            if (i - rangeStart + 1 >= numNeededPages) {
+                pageId = rangeStart;
                 break;
             }
         }
     }
+    // Mark space as occupied in bitmap
+    for (int i = pageId; i < pageId + numNeededPages; i++) {
+        _dataBitmap[i / 8] |= (1 << i % 8);
+    }
     // Return the location to put data
-    // Note that if no location was found, it will return -1
-    return dataRegionLocation;
+    if (pageId == -1)
+        return -1;
+    else return pageId * PAGE_SIZE;
+}
+
+void HermesFS::freeDataRegionSpace(int offset, int size) {
+    int pageId = offset / PAGE_SIZE;
+    int numPages = size / PAGE_SIZE + size % PAGE_SIZE == 0 ? 0 : 1;
+    for (int i = pageId; i < pageId + numPages; i++) {
+        _dataBitmap[i / 8] &= ~(1 << i % 8);
+    }
 }
 
 // Add an DirectoryData element to a directory.
@@ -236,12 +237,8 @@ void HermesFS::putInDirectory(int directoryINumber, DirectoryData directoryDataI
     // Put the new DirectoryData element in the new block
     memcpy(_dataBuffer + dataRegionLocation + inode.size, &directoryDataItem, sizeof(DirectoryData));
 
-    // Register data region space as occupied
-    for (int i = dataRegionLocation; i < dataRegionLocation + inode.size + sizeof(DirectoryData); i++)
-        _dataBitmap[i / 8] |= (1 << i % 8);
-    // Register data region space as free
-    for (int i = inode.dataRegionOffset; i < inode.dataRegionOffset + inode.size; i++)
-        _dataBitmap[i / 8] |= (1 << i % 8);
+    // Free data region space
+    freeDataRegionSpace(dataRegionLocation, inode.size);
 
     // Change data in inode
     _inodeTable[directoryINumber].dataRegionOffset = dataRegionLocation;
