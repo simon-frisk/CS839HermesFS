@@ -61,6 +61,7 @@ void HermesFS::createDirectory(std::string path) {
     _inodeTable[inumber].type = folder;
     _inodeTable[inumber].dataRegionOffset = 0;
     _inodeTable[inumber].size = 0;
+    _inodeTable[inumber].allocatedSize = 0;
     // Register this space as occupied in the inode table bitmap
     _inodeBitmap[inumber / 8] |= (1 << inumber % 8);
 }
@@ -79,9 +80,10 @@ void HermesFS::updateFile(std::string path, unsigned char* newData, int newDataL
         return;
     }
 
-    if (newDataLength != fileINode.size) {
+    if (newDataLength > fileINode.allocatedSize) {
         // If the new data length is different, we need to allocate a new data region
-        int newDataRegionLocation = allocateDataRegionSpace(newDataLength);
+        int allocatedSize;
+        int newDataRegionLocation = allocateDataRegionSpace(newDataLength, &allocatedSize);
         if (newDataRegionLocation == -1)
             return;
 
@@ -93,8 +95,9 @@ void HermesFS::updateFile(std::string path, unsigned char* newData, int newDataL
 
         _inodeTable[fileINumber].dataRegionOffset = newDataRegionLocation;
         _inodeTable[fileINumber].size = newDataLength;
+        _inodeTable[fileINumber].allocatedSize = allocatedSize;
     } else {
-        // If the new data length is the same as the old data length, we can simply update the existing data
+        // If the new data fits, we can simply write it in place
         memcpy(_dataBuffer + fileINode.dataRegionOffset, newData, newDataLength);
     }
 }
@@ -115,7 +118,8 @@ void HermesFS::createFile(std::string path, unsigned char* data, int dataLength)
   int inumber = allocateINode();    
   if(inumber == -1) return;
 
-  int dataRegionLocation = allocateDataRegionSpace(dataLength);
+  int allocatedSize;
+  int dataRegionLocation = allocateDataRegionSpace(dataLength, &allocatedSize);
   // Make sure that a location was found
   if (dataRegionLocation == -1)
       return;
@@ -123,6 +127,7 @@ void HermesFS::createFile(std::string path, unsigned char* data, int dataLength)
   // Set INode contents
   _inodeTable[inumber].type = file;
   _inodeTable[inumber].dataRegionOffset = dataRegionLocation;
+  _inodeTable[inumber].allocatedSize = allocatedSize;
   _inodeTable[inumber].size = dataLength;
   // Register this space as occupied in the inode table bitmap
   _inodeBitmap[inumber / 8] |= (1 << inumber % 8);
@@ -181,13 +186,14 @@ int HermesFS::getFileINumberInFolder(int folderINumber, std::string fileName)
     return -1;
 }
 
-int HermesFS::allocateDataRegionSpace(int size)
+int HermesFS::allocateDataRegionSpace(int size, int* sizeResult)
 {
     // If a region of size 0 was requested, put it at offset 0
     if (size == 0)
         return 0;
 
     int numNeededPages = size / PAGE_SIZE + (size % PAGE_SIZE == 0 ? 0 : 1);
+    *sizeResult = numNeededPages * PAGE_SIZE;
     // Find what page to put the file in the data region
     int pageId = -1;
     int rangeStart = 0;
@@ -224,24 +230,27 @@ void HermesFS::freeDataRegionSpace(int offset, int size) {
 // Add an DirectoryData element to a directory.
 void HermesFS::putInDirectory(int directoryINumber, DirectoryData directoryDataItem)
 {
-    INode inode = _inodeTable[directoryINumber];
+    // If need to move data, allocate new location and copy data there
+    if (_inodeTable[directoryINumber].size + sizeof(DirectoryData) > _inodeTable[directoryINumber].allocatedSize) {
+        // Allocate a new block of space on the data region
+        int allocatedSize;
+        int dataRegionLocation = allocateDataRegionSpace((_inodeTable[directoryINumber].size + sizeof(DirectoryData)), &allocatedSize);
+        // Check enough space was found
+        if (dataRegionLocation == -1)
+            return;
 
-    // Allocate a new block of space on the data region
-    int dataRegionLocation = allocateDataRegionSpace(inode.size + sizeof(DirectoryData));
-    // Check enough space was found
-    if (dataRegionLocation == -1)
-        return;
-
-    // Copy old data to this new region
-    memcpy(_dataBuffer + dataRegionLocation, _dataBuffer + inode.dataRegionOffset, inode.size);
+        // Copy old data to this new region
+        memcpy(_dataBuffer + dataRegionLocation, _dataBuffer + _inodeTable[directoryINumber].dataRegionOffset, _inodeTable[directoryINumber].size);
+        // Free data region space
+        freeDataRegionSpace(_inodeTable[directoryINumber].dataRegionOffset, _inodeTable[directoryINumber].size);
+        // Change data in inode
+        _inodeTable[directoryINumber].dataRegionOffset = dataRegionLocation;
+        _inodeTable[directoryINumber].allocatedSize = allocatedSize;   
+    }
+    
     // Put the new DirectoryData element in the new block
-    memcpy(_dataBuffer + dataRegionLocation + inode.size, &directoryDataItem, sizeof(DirectoryData));
-
-    // Free data region space
-    freeDataRegionSpace(dataRegionLocation, inode.size);
-
+    memcpy(_dataBuffer + _inodeTable[directoryINumber].dataRegionOffset + _inodeTable[directoryINumber].size, &directoryDataItem, sizeof(DirectoryData));
     // Change data in inode
-    _inodeTable[directoryINumber].dataRegionOffset = dataRegionLocation;
     _inodeTable[directoryINumber].size += sizeof(DirectoryData);
 }
 

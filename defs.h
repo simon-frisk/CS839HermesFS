@@ -14,7 +14,12 @@ enum INodeType {
 struct INode {
   INodeType type;
   int dataRegionOffset;
-  int size;
+  // The number of bytes this file/directory takes up
+  int size; 
+  // The number of bytes this file/directory has allocated. Can be more than size.
+  // When it is more than size, updates to a larger size can be made easily without
+  // allocating new space
+  int allocatedSize; 
 };
 
 // Store a list of these in the data region for a directory
