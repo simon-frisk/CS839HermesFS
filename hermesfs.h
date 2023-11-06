@@ -17,6 +17,7 @@ class HermesFS {
     void readFile(std::string path, unsigned char* data, int* dataLength);
     void createFile(std::string path, unsigned char* data, int dataLength);
     void updateFile(std::string path, unsigned char* data, int dataLength);
+    void appendFile(std::string path, unsigned char* data, int dataLength);
     void deleteFile(std::string path);
 
   private:

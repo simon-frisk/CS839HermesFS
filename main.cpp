@@ -19,7 +19,7 @@ void manyAppendsBenchMark(int dataLength) {
 
 	// Each iteration, update the file to include one more byte of data
 	for (int i = 2; i <= dataLength; i++) {
-		fs.updateFile("/dir/test.txt", data, i);
+		fs.appendFile("/dir/test.txt", data, i);
 	}
 
 	auto stop = high_resolution_clock::now();
@@ -69,8 +69,14 @@ void test1() {
 	fs.createFile("/dir/test1/test3", dataBuf, 1);
 	unsigned char res2;
 	int rlen2;
-	fs.readFile("/dir/test2", &res2, &rlen2);
+	fs.readFile("/dir/test1/test3", &res2, &rlen2);
 	success &= res2 == 'a';
+
+	fs.appendFile("/dir/test1/test3", dataBuf, 1);
+	unsigned char res3[2];
+	int rlen3;
+	fs.readFile("/dir/test1/test3", res3, &rlen3);
+	success &= res3[0] == 'a' && res3[1] == 'a';
 
 	if (success)
 		std::cout << "Success" << std::endl;

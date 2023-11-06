@@ -102,6 +102,44 @@ void HermesFS::updateFile(std::string path, unsigned char* newData, int newDataL
     }
 }
 
+void HermesFS::appendFile(std::string path, unsigned char* data, int dataLength)
+{
+    std::vector<std::string> paths = splitPath(path);
+
+    int fileINumber = traversePathGetInumber(paths);
+    if (fileINumber == -1)
+        return;
+
+    INode fileINode = _inodeTable[fileINumber];
+
+    // Check if the file is a regular file (not a directory)
+    if (fileINode.type != file) {
+        return;
+    }
+    
+    int newDataLength = dataLength + fileINode.size;
+    if (newDataLength > fileINode.allocatedSize) {
+        // If the new data length is too long, we need to allocate a new data region
+        int allocatedSize;
+        int newDataRegionLocation = allocateDataRegionSpace(newDataLength, &allocatedSize);
+        if (newDataRegionLocation == -1)
+            return;
+
+        // Copy the old data to the new data region
+        memcpy(_dataBuffer + newDataRegionLocation, _dataBuffer + fileINode.dataRegionOffset, fileINode.size);
+
+        // Free the old data region
+        freeDataRegionSpace(fileINode.dataRegionOffset, fileINode.size);
+
+        _inodeTable[fileINumber].dataRegionOffset = newDataRegionLocation;
+        _inodeTable[fileINumber].allocatedSize = allocatedSize;
+    }
+
+    // Copy the new data to the end of the file
+    memcpy(_dataBuffer + fileINode.dataRegionOffset + fileINode.size, data, dataLength);
+    _inodeTable[fileINumber].size = newDataLength;
+}
+
 void HermesFS::createFile(std::string path, unsigned char* data, int dataLength) {
   // Split the path
   std::vector<std::string> paths = splitPath(path);
